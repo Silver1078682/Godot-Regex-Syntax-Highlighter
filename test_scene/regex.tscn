@@ -1,0 +1,125 @@
+[gd_scene load_steps=6 format=3 uid="uid://bxcrp2my2elkp"]
+
+[ext_resource type="Script" uid="uid://ci3peoa71hq78" path="res://regex_syntax_highlighter.gd" id="1_n5h5x"]
+[ext_resource type="Script" uid="uid://cbkk8mliljbu" path="res://test_scene/label.gd" id="2_dp68c"]
+[ext_resource type="Script" uid="uid://cnipaukanyes2" path="res://test_scene/menu_button.gd" id="2_nih5a"]
+
+[sub_resource type="SystemFont" id="SystemFont_egx7s"]
+font_names = PackedStringArray("Monospace")
+subpixel_positioning = 0
+
+[sub_resource type="SyntaxHighlighter" id="SyntaxHighlighter_egx7s"]
+script = ExtResource("1_n5h5x")
+metadata/_custom_type_script = "uid://ci3peoa71hq78"
+
+[node name="MarginContainer" type="MarginContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 2
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 2
+theme_override_constants/margin_bottom = 2
+
+[node name="HBoxContainer" type="HSplitContainer" parent="."]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SplitContainer" type="VSplitContainer" parent="HBoxContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Regex" type="CodeEdit" parent="HBoxContainer/VBoxContainer/SplitContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_fonts/font = SubResource("SystemFont_egx7s")
+text = "(?xi) (a \\s*)? regex(?(1)|es)? |(a \\s*)? regular \\s* expression(?(1)|s?)
+(?x)  #(?x) starts the pcre extended mode, ignoring the whitespace in regular expression
+(?x)  #(?i) makes matching case insensitive"
+syntax_highlighter = SubResource("SyntaxHighlighter_egx7s")
+draw_control_chars = true
+draw_tabs = true
+draw_spaces = true
+auto_brace_completion_enabled = true
+
+[node name="TextEdit" type="TextEdit" parent="HBoxContainer/VBoxContainer/SplitContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "a regex syntax highlighter that highlight a regular expression (REGEX in short)
+Regexes are great!"
+draw_control_chars = true
+draw_tabs = true
+draw_spaces = true
+
+[node name="VBoxContainer2" type="VBoxContainer" parent="HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.3
+
+[node name="PanelContainer" type="PanelContainer" parent="HBoxContainer/VBoxContainer2"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+
+[node name="MenuButton" type="MenuButton" parent="HBoxContainer/VBoxContainer2/PanelContainer" node_paths=PackedStringArray("regex")]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.5
+text = "Presets"
+item_count = 8
+popup/item_0/text = "KnownIssue"
+popup/item_0/id = 0
+popup/item_1/text = "Verbs at begining"
+popup/item_1/id = 1
+popup/item_2/text = "Normal Escape"
+popup/item_2/id = 2
+popup/item_3/text = "Hex&Oct Escape"
+popup/item_3/id = 3
+popup/item_4/text = "Sequence Qoutes"
+popup/item_4/id = 4
+popup/item_5/text = "Quantifiers"
+popup/item_5/id = 5
+popup/item_6/text = "Anchors"
+popup/item_6/id = 6
+popup/item_7/text = "Char class"
+popup/item_7/id = 7
+script = ExtResource("2_nih5a")
+regex = NodePath("../../../VBoxContainer/SplitContainer/Regex")
+
+[node name="PanelContainer2" type="PanelContainer" parent="HBoxContainer/VBoxContainer2"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HBoxContainer/VBoxContainer2/PanelContainer2"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="HBoxContainer/VBoxContainer2/PanelContainer2/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="HBoxContainer/VBoxContainer2/PanelContainer2/VBoxContainer/ScrollContainer" node_paths=PackedStringArray("regex_edit", "text_edit")]
+layout_mode = 2
+size_flags_vertical = 1
+script = ExtResource("2_dp68c")
+regex_edit = NodePath("../../../../../VBoxContainer/SplitContainer/Regex")
+text_edit = NodePath("../../../../../VBoxContainer/SplitContainer/TextEdit")
+
+[node name="HBoxContainer" type="HBoxContainer" parent="HBoxContainer/VBoxContainer2/PanelContainer2/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 8
+
+[node name="CheckBox" type="CheckBox" parent="HBoxContainer/VBoxContainer2/PanelContainer2/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+button_pressed = true
+text = "line break"
+flat = true
+
+[connection signal="text_changed" from="HBoxContainer/VBoxContainer/SplitContainer/Regex" to="HBoxContainer/VBoxContainer2/PanelContainer2/VBoxContainer/ScrollContainer/Label" method="_update"]
+[connection signal="text_set" from="HBoxContainer/VBoxContainer/SplitContainer/Regex" to="HBoxContainer/VBoxContainer2/PanelContainer2/VBoxContainer/ScrollContainer/Label" method="_update"]
+[connection signal="text_changed" from="HBoxContainer/VBoxContainer/SplitContainer/TextEdit" to="HBoxContainer/VBoxContainer2/PanelContainer2/VBoxContainer/ScrollContainer/Label" method="_update"]
+[connection signal="text_set" from="HBoxContainer/VBoxContainer/SplitContainer/TextEdit" to="HBoxContainer/VBoxContainer2/PanelContainer2/VBoxContainer/ScrollContainer/Label" method="_update"]

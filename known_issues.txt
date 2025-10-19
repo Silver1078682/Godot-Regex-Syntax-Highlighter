@@ -1,0 +1,26 @@
+[Major Problems]
+(?x)# Fail to render multiline regex properly
+[
+This should have worked (at least optionally)
+]
+
+
+[NOT IMPLEMENTED]
+(?x)#1. Not supporting Perl extended character class
+?[qwq&&awa]
+
+(?x)#2. UTF mode which allows unicode escape
+(*UTF) \N{U+003f}
+
+(?x)#3. Duplicating group name constraint
+(?-J)(?<as>a)(?<as>a)
+
+(?x)#4. An error is marked when group name is longer than 128 chars, however, it should be 128 code units
+
+(?x)#5. Semantic highlight when involving group name
+
+(?x)#6. When use are refering to a group in back reference, condition or subroutine, we don't check if the group with that name does exist 
+\g{unknown} (?(<unknown>)|) (?&unknown)
+
+(?x)#7. Callouts (external function entries, which is not supported in Godot)
+(?C1)abc(?C2)def
