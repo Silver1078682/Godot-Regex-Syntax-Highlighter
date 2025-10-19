@@ -101,6 +101,22 @@ func highlight():
 			elif c == "[":  # char class set begin
 				mark_current(char_class_color)
 				_char_class_start = _pointer
+				
+				var d = _text[_pointer + 1] if _pointer + 1 < _text_length else ""
+				if d == "":
+					set_color_at(error_color, _pointer)
+					break
+				elif d == "^":
+					_char_class_start += 1
+					_pointer += 1
+					mark_current(char_class_color)
+				elif d == ":":
+					if check_rule(CharClass.posix_brackets, error_color): #sorry, but posix char class is only allowed inside a char class
+						#set_color_at(error_color, _pointer - _regex_match.get_end())
+						_char_class_start = -1 # terminate the char class
+					else:
+						_token_start += 1 # not a posix char class? then it should be allowed, redo the step.
+
 
 			elif c == "(":
 				if check_rule(Verb.common):
@@ -154,13 +170,19 @@ func highlight():
 					mark_current(group_color)
 
 		elif is_char_class_mode(): # highlighting outside a char class
-			if check_rule(CharClass.posix):
-				continue
+			set_color(normal_color)
+			if c == "[":
+				if check_rule(CharClass.posix):
+					continue
+				elif check_rule(CharClass.posix_brackets):
+					pass # You are fake posix!!!
 
-			elif (_pointer - 1 != _char_class_start) and c == "]":
-				mark_current(char_class_color)
-				_char_class_start = -1  # terminate char class mode
+			elif c == "]":
+				if _pointer - 1 != _char_class_start: #excluding []
+					mark_current(char_class_color)
+					_char_class_start = -1  # terminate char class mode
 
+			
 			elif c == "-":  # a potential range indicator
 				var right = _text[_pointer + 1] if _pointer + 1 < _text_length else ""
 				if right == "]":
@@ -169,6 +191,7 @@ func highlight():
 					continue  # a hyphen at the start  [-
 				elif not right:  # a hyphen at the end of string
 					continue
+					
 				# what's on the left?
 				var left: String
 				var left_start: int
@@ -469,6 +492,7 @@ class Group:
 class CharClass:
 	#POSIX notations for character classes
 	static var posix = TokenMatcher.new(r"\[:\^?(?:alnum|alpha|ascii|blank|cntrl|digit|graph|lower|print|punct|space|upper|word|xdigit|<|>):\]", &"char_class_color")
+	static var posix_brackets := TokenMatcher.new(r"\[\:([^\]]|\\\])*?\:\]", &"error_color")
 
 
 # namespace
