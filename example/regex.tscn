@@ -1,8 +1,8 @@
 [gd_scene load_steps=6 format=3 uid="uid://bxcrp2my2elkp"]
 
 [ext_resource type="Script" uid="uid://ci3peoa71hq78" path="res://regex_syntax_highlighter.gd" id="1_n5h5x"]
-[ext_resource type="Script" uid="uid://cbkk8mliljbu" path="res://test_scene/label.gd" id="2_dp68c"]
-[ext_resource type="Script" uid="uid://cnipaukanyes2" path="res://test_scene/menu_button.gd" id="2_nih5a"]
+[ext_resource type="Script" uid="uid://cbkk8mliljbu" path="res://example/label.gd" id="2_dp68c"]
+[ext_resource type="Script" uid="uid://cnipaukanyes2" path="res://example/menu_button.gd" id="2_nih5a"]
 
 [sub_resource type="SystemFont" id="SystemFont_egx7s"]
 font_names = PackedStringArray("Monospace")

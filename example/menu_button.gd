@@ -44,14 +44,14 @@ var basic_feature := \
 r"""(*UTF)Basic Stuffs
 (?#comments)
 ^anchors\bhighlighted$ [^\b$^]		(?# anchors)
-(apple|banana|lemon)			 	(?# capture group)
-(?=lookAhead) (?<!negativeLookBehind)
-(.+)([A-Z]) \1\g{2} 				(?# back reference)
-(?<groupName>) \k<groupName>		(?# group with name)
+(apple|banana|lemon)				 	(?# capture group)
+(?=lookAhead) (?<!negativeLookBehind)	(?# look around)
+(.+)([A-Z]) \1\g{2} 					(?# back reference)
+(?<groupName>) \k<groupName>			(?# group with name)
 \s+?\S* \w{1, 2} cats? 				(?# quantifiers)
 \x12 \x{0123} \0 \11 \o{12}			(?# hex and oct digit escape)
 \Q(*^_ ^*)\E 						(?# quote a string)
-[A-Z.\]-] 							(?# char class)
+[A-Z.\]-z---] 						(?# char class)
 (?im)internal setting flag(?^x)		# optional settings
 
 (?# email matcher by https://www.linkedin.com/in/peralta-steve-atileon/)
