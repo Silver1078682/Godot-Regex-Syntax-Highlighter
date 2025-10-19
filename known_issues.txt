@@ -15,12 +15,11 @@ This should have worked (at least optionally)
 (?x)#3. Duplicating group name constraint
 (?-J)(?<as>a)(?<as>a)
 
-(?x)#4. An error is marked when group name is longer than 128 chars, however, it should be 128 code units
-
-(?x)#5. Semantic highlight when involving group name
-
-(?x)#6. When use are refering to a group in back reference, condition or subroutine, we don't check if the group with that name does exist 
+(?x)#4. Semantic highlight when involving group names
+(?x)# When referring to a group in back reference, condition or subroutine, we don't check if the group with that name does exist 
 \g{unknown} (?(<unknown>)|) (?&unknown)
 
-(?x)#7. Callouts (external function entries, which is not supported in Godot)
+(?x)#5. Callouts (external function entries, which is not supported in Godot)
 (?C1)abc(?C2)def
+
+(?x)#6. pattern as \18 not escaped to \1 
