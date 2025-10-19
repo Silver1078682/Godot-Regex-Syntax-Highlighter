@@ -1,9 +1,7 @@
 class_name RegexSyntaxHighlighter
 extends SyntaxHighlighter
-# a regex based on PCRE2 standard.(The one godot used)
-# only implement basic rules
+## a regex based on PCRE2 standard.(The one godot used)
 
-# These lines must be put before declaration of grammar tree because the order members are instantiated
 ## The color of normal characters
 @export var normal_color: Color = Color.WHITE
 ## The color of escape characters
@@ -28,6 +26,7 @@ extends SyntaxHighlighter
 @export var verb_color: Color = Color.MEDIUM_PURPLE
 
 
+# implementing the virtual method 
 func _get_line_syntax_highlighting(line: int) -> Dictionary:
 	_text = get_text_edit().get_line(line)
 	set_text(_text)
@@ -35,7 +34,7 @@ func _get_line_syntax_highlighting(line: int) -> Dictionary:
 	return _result
 
 
-#analyze and highlight the regex
+# analyze and highlight the current text
 func highlight():
 	check_multiple_tokens(Verb.start)
 
@@ -43,52 +42,53 @@ func highlight():
 		var c := _read()
 		if c == "":  # meet the end
 			set_color(normal_color)
-			if is_char_class_mode():  # unfinished square bracket
-				_open_parentheses.append(_char_class_start)  # all opening brackets (now including round and square ones)
+			if is_char_class_mode():  # we get a unfinished square bracket (i.e a char class)
+				set_color_at(error_color, _char_class_start)
 
-			for position in _open_parentheses:  # handle the unfinished brackets
-				_token_start = position
-				set_color(error_color, 0)
+			for group_mata in _open_groups:  # handle the unfinished brackets
+				set_color_at(error_color, group_mata.position)
 
-			for position in _group_idx_refs:
+			for position in _group_idx_refs: # handle all group idx refs
 				var back_ref_info := _group_idx_refs[position]
 				var back_ref_string: String = back_ref_info[0].get_string("index")
 				if not back_ref_string:
-					continue
-				var signed := back_ref_string[0] in "+-"
-				var group_idx: int = int(back_ref_string) + (back_ref_info[1] if signed else 0)
-				if (signed and int(back_ref_string) == 0) or (group_idx > _closed_parentheses or group_idx < 0):
+					continue # TBD it seems this branch is never entered if we havee nough control on what's inside the _group_idx_refs array
+				var relative := back_ref_string[0] in "+-" # a relative reference!
+				var group_idx: int = (back_ref_info[1] if relative else 0) + int(back_ref_string) # get the absolute index
+				if (relative and int(back_ref_string) == 0) or (group_idx > _closed_groups or group_idx < 0):
+					# a relative idx should not be 0           # the group should exist
 					_token_start = position - back_ref_info[0].get_string().length() + 1
 					set_color(escape_color if back_ref_info[-1] else error_color, 0)  # there is no such group
 
 			break
 
-		elif c == "\\":  # escape
-			escape()
+		elif c == "\\":  # likely an escaped characters!
+			escape() # we make sure escaped characters are handled with the highest priority
 
-		elif not is_char_class_mode():
+		elif not is_char_class_mode(): # highlighting inside a char class
 			if c in "+*?{":  # May be a quantifier!
 				var quantified := check_rules(Quantifier.rule)
 				if quantified:
 					if quantified in [Quantifier.min_max, Quantifier.less, Quantifier.greater]:
-						var left = int(_regex_match.get_string("l"))
-						var right = int(_regex_match.get_string("r"))
+						var left = int(_regex_match.get_string("l")) # returns 0 in case of { ,1}
+						var right = int(_regex_match.get_string("r")) # returns 0 in case of {1, }
 						if left > right or min(left, right) > 65535:
 							# {2,1}			#exceed max range
 							_token_start -= _regex_match.get_end()
-							set_error()  # wrong range quantifier e.g. a{2,1}
+							set_error()  # invalid range quantifier e.g. a{2,1}
 					no_more_quantifier()
 
 			elif c == "#" and _extended_mode:
 				check_rule(Comment.extended_rule)
 
-			elif c == "|":
+			elif c == "|": # An or operation!
 				var color = group_color
-				if _open_parentheses:
-					if _is_open_parentheses_condition[-1] == 0:
-						color = error_color
-					if _is_open_parentheses_condition[-1] > 0:
-						_is_open_parentheses_condition[-1] -= 1
+				if _open_groups:
+					var flag := _open_groups[-1].condition_flag 
+					if flag == Group.ConditionFlag.NO_BRANCH:
+						color = error_color # if we are at the not branch at a condition group it means we cannot have any more |
+					elif flag == Group.ConditionFlag.YES_BRANCH:
+						_open_groups[-1].condition_flag = Group.ConditionFlag.NO_BRANCH
 
 				mark_current(color)
 				no_more_quantifier()
@@ -104,45 +104,55 @@ func highlight():
 			elif c == "(":
 				if check_rule(Verb.common):
 					if _regex_match.get_string() == "(*ACCEPT)":  #accept is the only backtracking verb can be quantified
-						continue  # prevent no more quantifier from being called, see below
+						continue  # go to next the loop so that no_more_quantifier below won't bae called
 				elif check_rule(Comment.rule):
 					pass
 				elif check_rule(Group.internal_setting):
 					var regex_match_string = _regex_match.get_string()
 					analyze_internal_settings(regex_match_string)
 
-				else:
-					_open_parentheses.append(_pointer)
-					_is_open_parentheses_condition.append(-1)
+				else: # it is a group
+					_open_groups.append(Group.GroupMeta.new(_pointer))
 					var grouped = check_rules(Group.rule)
 					if grouped:
-						if grouped == Group.name:
+						if grouped == Group.name: # named group
 							var group_name = _regex_match.get_string("name")
-							if not Group.valid_name.search(group_name):
-								_token_start -= group_name.length() + 2
-								set_error()
-						if grouped in [Group.condition, Group.condition_name]:
-							_is_open_parentheses_condition[-1] = 1  # only one | is allowedin condition group
-						if grouped in [Group.sub_routine, Group.sub_routine_name, Group.back_ref_name]:
-							close_a_parentheses(false)
-						if grouped in [Group.sub_routine, Group.condition]:
-							_group_idx_refs[_pointer] = [_regex_match, _closed_parentheses + _open_parentheses.size(), false]
-						elif grouped == Group.internal_setting:
+							if not Group.valid_name.search(group_name): # oops, not a valid name!
+								set_color_at(error_color, _pointer - group_name.length() - 1)
+							else:
+								_open_groups[-1].capturing = true
+								#TODO group_name_ref[group_name] = ...
+							
+						elif grouped == Group.normal:# a normal group
+							_open_groups[-1].capturing = true
+							
+						if grouped in [Group.normal, Group.internal_setting]:
 							var regex_match_string = _regex_match.get_string("setting")
 							analyze_internal_settings(regex_match_string)
-							set_color(group_color)
+							
+						if grouped in [Group.condition, Group.condition_name]:
+							# It turns out to be a condition group
+							_open_groups[-1].condition_flag = Group.ConditionFlag.YES_BRANCH
+							
+						if grouped in [Group.sub_routine, Group.sub_routine_name, Group.back_ref_name]:
+							# It turns out to match a completed pattern
+							close_a_parentheses(false)
+						
+						if grouped in [Group.sub_routine, Group.condition]:
+							# record the group idx refs
+							_group_idx_refs[_pointer] = [_regex_match, _closed_groups + _open_groups.size(), false]
 
 				no_more_quantifier()
 
 			elif c == ")":
-				if not _open_parentheses:
+				if not _open_groups:
 					mark_current(error_color)
 				else:
-					# if is not negative, then it is a condition group, which does not count
-					close_a_parentheses(_is_open_parentheses_condition[-1] < 0)
+					# a condition group does not count as a capturing group
+					close_a_parentheses(_open_groups[-1].capturing)
 					mark_current(group_color)
 
-		elif is_char_class_mode():
+		elif is_char_class_mode(): # highlighting outside a char class
 			if check_rule(CharClass.posix):
 				continue
 
@@ -156,35 +166,34 @@ func highlight():
 					continue  # a hyphen at the end    -]
 				elif _pointer == _char_class_start + 1:
 					continue  # a hyphen at the start  [-
-				elif not right:  # ahyphrn at the end
+				elif not right:  # a hyphen at the end of string
 					continue
-				#what's on the left?
+				# what's on the left?
 				var left: String
 				var left_start: int
-				left_start = _pointer - 1  #just the single character adjacent
+				left_start = _pointer - 1  #just a single character adjacent
 				left = _text[left_start]
 
 				if _last_escaped_regex_match:
-					var last_escaped_start = _pointer - _last_escaped_regex_match.get_end()
-					if _text[last_escaped_start] == "\\":  #left is indeed an escaped character
+					var last_escaped_start = _pointer - _last_escaped_regex_match.get_end() # or maybe an escaped character?
+					if _text[last_escaped_start] == "\\":  # it is indeed an escaped character
 						left = Escape.get_value(_last_escaped_regex_match.get_string())
 						left_start = last_escaped_start
-				if left_start <= _last_char_class_hyphen + 1:
-					continue  # a char_class_hyphen before our left neighbor, meaning it is already a right part of a range
+				if left_start <= _last_range_hyphen + 1:
+					continue  # a range hyphen before our neighbor on the left, meaning it is already a right value of a range
 
-				#what's on the right
+				# what's on the right?
 				var p = _pointer
-				if right == "\\":  # should escape;
-					_pointer += 1
+				if right == "\\":  # it should be an escaped value
+					_pointer += 1 # move the pointer to \ before we check the rules
 					if escape() and _last_escaped_regex_match:  # do the escape; check the escape
 						right = Escape.get_value(_last_escaped_regex_match.get_string())
-					_pointer -= 1
+					_pointer -= 1 # we should move back then BUT WHY?? 
 				else:
 					_token_start = p + 1
-				# compare left and right char value
-				# if the range is in order
+				# compare left and right char see if the range is in order
 				_result.get_or_add(p, {}).color = char_class_color if (left and right and left <= right) else error_color
-				_last_char_class_hyphen = _pointer  #. indicating the end of last "range max"
+				_last_range_hyphen = _pointer
 
 
 func escape() -> bool:
@@ -193,7 +202,7 @@ func escape() -> bool:
 		set_error()  # RXB won't be escaped in char class
 		return true
 	elif check_rule(Escape.back_ref):
-		_group_idx_refs[_pointer] = [_regex_match, _closed_parentheses + _open_parentheses.size(), false]
+		_group_idx_refs[_pointer] = [_regex_match, _closed_groups + _open_groups.size(), false]
 		var p := _pointer
 		_pointer -= _regex_match.get_end() - 1
 		if check_rule(Escape.ambiguous):  # a group back reference or a octal digit escape
@@ -214,46 +223,51 @@ func escape() -> bool:
 			else:
 				no_more_quantifier()
 		elif escaped == Escape.sub_routine:
-			_group_idx_refs[_pointer] = [_regex_match, _closed_parentheses + _open_parentheses.size(), false]
+			_group_idx_refs[_pointer] = [_regex_match, _closed_groups + _open_groups.size(), false]
 		_last_escaped_regex_match = _regex_match
 	return escaped != null
 
 
-var _extended_mode: bool  # pcre2 extended mode
 var _pointer: int = -1
 var _token_start: int
 var _text: String  # current line to be highlighted
-var _text_length: int
-
-var _last_escaped_regex_match: RegExMatch
+var _text_length: int # the length of _text
 
 var _regex_match: RegExMatch  # The last regex match we encountered
+var _last_escaped_regex_match: RegExMatch # The last regex match as an escaped character we encountered
+
+var _extended_mode: bool  # pcre2 extended mode
+
 
 # char class stuffs
-var _char_class_start: int
-
+var _char_class_start: int # where last char class (left bracket) starts
+# where last hyphen as a range indicator ina char class is at.  e.g the hyphen in [1-2] 
+var _last_range_hyphen: int
 
 func is_char_class_mode():
 	return _char_class_start != -1
 
 
-var _last_char_class_hyphen: int
 
 # group stuffs
-# all open parentheses
-var _open_parentheses: Array[int]
-var _is_open_parentheses_condition: Array[int]
-# counter of closed parentheses, also the numbers of valid group
-var _closed_parentheses: int
+# the position of all open parentheses
+var _open_groups: Array[Group.GroupMeta]
+# counters of closed captured group, also the numbers of valid group
+var _closed_groups: int
 
 
-# close a parentheses, if cnt set false, won't affect the _closed_parentheses
-# useful when manually closing a token that is not a not a group
-func close_a_parentheses(cnt := true):
-	_closed_parentheses += 1 if cnt else 0
-	_open_parentheses.pop_back()
-	_is_open_parentheses_condition.pop_back()
+# close a parentheses.
+# if capturing set false, won't affect the _closed_groups
+func close_a_parentheses(capturing : bool):
+	_closed_groups += 1 if capturing else 0
+	_open_groups.pop_back()
 
+
+# group refs stuffs
+# there are totally 3 occasions when we refers to a capture group in pcre regex:
+# backref subroutine and condition
+# and there are two ways to reference a group:
+# (absolute or relative) index and names
 
 # information about group index references, so that we can mark non-existent group error later
 # e.g \1 \g+3 \g<1> ,all pointing to a group at give index
@@ -265,14 +279,14 @@ var _group_idx_refs: Dictionary[int, Array]
 
 # add a group index reference, by default, it won't be set ambiguous
 func add_group_idx_ref() -> void:
-	_group_idx_refs[_pointer] = [_regex_match, _closed_parentheses + _open_parentheses.size(), false]
+	_group_idx_refs[_pointer] = [_regex_match, _closed_groups + _open_groups.size(), false]
 
 
 var _result: Dictionary[int, Dictionary]  # the result that will be returned in _get_line_syntax_highlighting
 #----------------
 
 
-# set the _ext, also reset all private states property
+# set the text, also reset all state property
 func set_text(p_text: String):
 	_extended_mode = false
 	_pointer = 0
@@ -282,21 +296,20 @@ func set_text(p_text: String):
 	_last_escaped_regex_match = null
 	_regex_match = null
 	_char_class_start = -1
-	_last_char_class_hyphen = -1
-	_open_parentheses.clear()
-	_closed_parentheses = 0
+	_last_range_hyphen = -1
+	_open_groups.clear()
+	_closed_groups = 0
 	_group_idx_refs.clear()
-
 	_result = {}
 
 
-# read a character, and move the pointer toward
+# read a character, and move the pointer foward
 func _read() -> String:
 	_pointer += 1
 	return _text[_pointer] if _pointer < _text_length else ""
 
 
-# check if the token staring exactly from our pointer matches the rule
+# check if the token starting exactly from pointer matches the rule
 # return true and automatically dye the token on success
 # otherwise returns false
 func check_rule(rule: TokenMatcher, color_override := Color()) -> bool:
@@ -309,7 +322,7 @@ func check_rule(rule: TokenMatcher, color_override := Color()) -> bool:
 	return false
 
 
-# check and dye a set of rule in order, returns the rule matched and stop checking the others if one is matched
+# check a set of rule in order, returns the rule matched and stop checking the others if one is matched
 func check_rules(rules: Array[TokenMatcher], color_override := Color()) -> TokenMatcher:
 	for regex_rule in rules:
 		if check_rule(regex_rule, color_override):
@@ -342,12 +355,15 @@ func analyze_internal_settings(setting: String):
 	elif not _extended_mode and (extended != -1 and (unset == -1 or extended < unset)):
 		_extended_mode = true
 
-
+# set the color at a given position
+func set_color_at(color: Color, position: int):
+	_result.get_or_add(position, {}).color = color
+	
 # This function dye all chars between _token_start and _pointer(_pointer.e the current token)
 # It also moves the _token_start right after _pointer, which means a offset with value 1
 # You can change the offset if you'd like to.
 func set_color(color: Color, offset := 1):
-	_result.get_or_add(_token_start, {}).color = color
+	set_color_at(color, _token_start)
 	_token_start = _pointer + offset
 
 
@@ -362,8 +378,8 @@ func mark_current(color: Color):
 	set_color(color)
 
 
-# immediately call this if you don't want any quantifiers following a token
-# has no effect if char_class_mode is on
+# immediately call this if you don't want any quantifiers following the current token
+# has no effect if _char_class_mode is on
 func no_more_quantifier():
 	if is_char_class_mode():
 		return
@@ -381,12 +397,13 @@ class TokenMatcher:
 		color = p_color
 
 	var regex: RegEx
-	var color: StringName
+	var color: StringName # a stringname pointing to which color to use
 
 
+# namespace
 class Comment:
 	static var rule := TokenMatcher.new(r"\(\?#.*?\)", &"comment_color")
-	static var extended_rule := TokenMatcher.new(r"#.*\Z", &"comment_color")
+	static var extended_rule := TokenMatcher.new(r"#.*\Z", &"comment_color") # pattern that is only available in extended mode
 
 
 # namespace
@@ -400,6 +417,20 @@ class Verb:
 # namespace
 # though named group, It actually contains every pattern (excluding verbs) beginning with a "("
 class Group:
+	class GroupMeta:
+		var condition_flag: ConditionFlag
+		var capturing := false
+		var position: int
+		
+		func _init(p_position: int) -> void:
+			position = p_position
+		
+	enum ConditionFlag {
+			NOT_CONDITION, # the group is not a condition group
+			YES_BRANCH, # the group is a condition group, and the pointer is at its YES branch
+			NO_BRANCH, # the group is not a condition group, and  the pointer is its NO branch
+		}
+	
 	static var internal_setting = TokenMatcher.new(r"\(\?((?<unset>\^)?([imnsxrJU]|xx|a[DSWPT]?|)*(?('unset')|-?)([imnsxrJU]|xx|a[DSWPT]?|)*)\)", &"verb_color")
 	static var valid_name = RegEx.create_from_string(r"^[_A-Za-z][_A-Za-z0-9]{0,127}\z")
 	static var name = TokenMatcher.new(r"\(\?(?|P?\<(?<name>.*?)\>|\'(?<name>.*?)\')", &"group_color")  # matches a named group
