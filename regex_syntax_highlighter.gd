@@ -37,6 +37,7 @@ func _get_line_syntax_highlighting(line: int) -> Dictionary:
 # analyze and highlight the current text
 func highlight():
 	check_multiple_tokens(Verb.start)
+	no_more_quantifier()
 
 	while true:
 		var c := _read()
